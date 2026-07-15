@@ -429,9 +429,19 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                 <p className="text-xs text-slate-400">Created: {new Date(previewData.created_at).toLocaleDateString()}</p>
               </div>
             </div>
-            <button onClick={() => loadDeckForEdit(previewData.id, previewData)} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-primary-500/20 text-sm">
-              <Edit2 size={16} /> Edit Deck
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                setDeckCards(previewData.cards);
+                setDeckName(previewData.name);
+                setImportExportInitialMode('export');
+                setShowImportExport(true);
+              }} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-blue-500/20 text-sm">
+                <Download size={16} /> Export Deck
+              </button>
+              <button onClick={() => loadDeckForEdit(previewData.id, previewData)} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-primary-500/20 text-sm">
+                <Edit2 size={16} /> Edit Deck
+              </button>
+            </div>
           </header>
 
           {/* Content */}
@@ -718,8 +728,8 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                 )}
                 
                 {/* Domain Gradient Overlay */}
-                <div className={`absolute inset-0 z-10 bg-gradient-to-br ${getDomainGradients(deck.rune_domains)} opacity-20 group-hover:opacity-90 mix-blend-multiply transition-opacity duration-500`}></div>
-                <div className={`absolute inset-0 z-10 bg-gradient-to-t from-dark-950/40 group-hover:from-dark-950/80 via-transparent to-transparent transition-colors duration-500`}></div>
+                <div className={`absolute inset-0 z-10 bg-gradient-to-br ${getDomainGradients(deck.rune_domains)} opacity-10 group-hover:opacity-50 mix-blend-multiply transition-opacity duration-500`}></div>
+                <div className={`absolute inset-0 z-10 bg-gradient-to-t from-dark-950/20 group-hover:from-dark-950/60 via-transparent to-transparent transition-colors duration-500`}></div>
 
                 {/* Random Card Accents in background */}
                 {deck.random_cards && deck.random_cards.length > 0 && (
