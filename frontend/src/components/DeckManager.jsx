@@ -49,11 +49,20 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       
       setCurrentDeck(deckData.id);
       setDeckName(deckData.name);
-      setDeckCards(deckData.cards.map(c => ({
+      const mapped = deckData.cards.map(c => ({
         card: { ...c, id: c.card_id }, // map db joined fields
         section: c.section,
         quantity: c.quantity
-      })));
+      }));
+      if (deckData.legend_id) {
+        const leg = collection.find(c => c.id === deckData.legend_id);
+        if (leg) mapped.push({ card: leg, section: 'legend', quantity: 1 });
+      }
+      if (deckData.champion_id) {
+        const champ = collection.find(c => c.id === deckData.champion_id);
+        if (champ) mapped.push({ card: champ, section: 'champion', quantity: 1 });
+      }
+      setDeckCards(mapped);
     } catch (err) {
       console.error(err);
     }
@@ -118,18 +127,6 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     }
   };
 
-  const handleExportDeck = async (id) => {
-    try {
-      const res = await fetch(`${API_URL}/decks/${id}`);
-      const data = await res.json();
-      setDeckCards(data.cards);
-      setDeckName(data.name);
-      setImportExportInitialMode('export');
-      setShowImportExport(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const startNewDeck = () => {
     setPreviewDeck(null);
@@ -430,14 +427,6 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => {
-                setDeckCards(previewData.cards);
-                setDeckName(previewData.name);
-                setImportExportInitialMode('export');
-                setShowImportExport(true);
-              }} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-blue-500/20 text-sm">
-                <Download size={16} /> Export Deck
-              </button>
               <button onClick={() => loadDeckForEdit(previewData.id, previewData)} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-primary-500/20 text-sm">
                 <Edit2 size={16} /> Edit Deck
               </button>
@@ -771,9 +760,6 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                   
                   {/* Delete Button - Top Right */}
                   <div className="absolute top-4 right-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
-                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExportDeck(deck.id); }} className="bg-blue-600/90 hover:bg-blue-500 text-white p-2.5 rounded-full shadow-lg backdrop-blur" title="Export Deck">
-                      <Download size={18} />
-                    </button>
                     <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteDeck(deck.id); }} className="bg-red-600/90 hover:bg-red-500 text-white p-2.5 rounded-full shadow-lg backdrop-blur" title="Delete Deck">
                       <Trash2 size={18} />
                     </button>
@@ -874,12 +860,6 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           <div className="flex gap-2">
             <button onClick={saveDeck} className="flex-1 bg-primary-600 hover:bg-primary-500 text-white py-1.5 rounded font-bold text-sm transition-colors shadow-sm">
               Save Deck
-            </button>
-            <button onClick={() => {
-              setImportExportInitialMode('export');
-              setShowImportExport(true);
-            }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
-              <Download size={16} /> Export
             </button>
           </div>
           {validation.errors.length > 0 ? (

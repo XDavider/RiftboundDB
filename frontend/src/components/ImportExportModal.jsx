@@ -206,8 +206,8 @@ export default function ImportExportModal({ isOpen, onClose, deckCards, deckName
       <div className="bg-dark-900 border border-dark-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         <header className="p-4 border-b border-dark-700 flex justify-between items-center bg-dark-800">
           <h2 className="text-xl font-black text-white flex items-center gap-2">
-            {mode === 'export' ? <Download size={20} /> : <Upload size={20} />}
-            {mode === 'export' ? 'Export Deck' : 'Import Deck'}
+            <Upload size={20} />
+            Import Deck
           </h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white transition-colors rounded hover:bg-dark-700">
             <X size={20} />
@@ -215,35 +215,16 @@ export default function ImportExportModal({ isOpen, onClose, deckCards, deckName
         </header>
 
         <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-          {/* Format Switcher */}
-          {mode === 'export' && (
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => { setFormat('code'); generateExport(); }}
-                className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors border ${format === 'code' ? 'bg-primary-600 border-primary-500 text-white' : 'border-dark-700 text-slate-400 hover:text-white hover:border-dark-600'}`}
-              >
-                CODE Format
-              </button>
-              <button
-                onClick={() => { setFormat('text'); generateExport(); }}
-                className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors border ${format === 'text' ? 'bg-primary-600 border-primary-500 text-white' : 'border-dark-700 text-slate-400 hover:text-white hover:border-dark-600'}`}
-              >
-                TEXT Format
-              </button>
-            </div>
-          )}
-
           {/* Text Area */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {mode === 'export' ? 'Deck Data' : 'Paste Deck Data (TEXT or CODE)'}
+              Paste Deck Data (TEXT or CODE)
             </label>
             <textarea
               className="w-full h-64 bg-dark-950 border border-dark-700 rounded-xl p-4 text-sm text-slate-300 font-mono focus:outline-none focus:border-primary-500 transition-colors resize-none"
-              readOnly={mode === 'export'}
-              value={mode === 'export' ? exportText : importText}
-              onChange={e => mode === 'import' && setImportText(e.target.value)}
-              placeholder={mode === 'import' ? "Paste your deck code, json or text here..." : ""}
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              placeholder="Paste your deck code, json or text here..."
             />
             {error && mode === 'import' && (
               <p className="text-red-400 text-xs font-bold bg-red-500/10 p-2 rounded">{error}</p>
@@ -255,17 +236,10 @@ export default function ImportExportModal({ isOpen, onClose, deckCards, deckName
           <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-400 hover:text-white transition-colors">
             Cancel
           </button>
-          {mode === 'export' ? (
-            <button onClick={copyToClipboard} className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-primary-500/20">
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? 'Copied!' : 'Copy to Clipboard'}
-            </button>
-          ) : (
             <button onClick={handleImport} disabled={loading || !importText.trim()} className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg">
               {loading ? <span className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span> : <Upload size={16} />}
               Import Deck
             </button>
-          )}
         </footer>
       </div>
     </div>

@@ -125,17 +125,19 @@ function App() {
            const normalCount = parseInt(cols[1]) || 0;
            const foilCount = parseInt(cols[2]) || 0;
            
-           // Find matching card in DB
-           // Usually csv has OGN-004a, OGN-004b... we take the base code and strip leading zeros
-           const baseCodeMatch = cardCode.match(/^([A-Z]+)-0*(\d+)/i);
-           const baseCode = baseCodeMatch ? `${baseCodeMatch[1].toUpperCase()}-${baseCodeMatch[2]}` : cardCode.toUpperCase();
+           let card = cards.find(c => c.card_code && c.card_code.toLowerCase() === cardCode.toLowerCase());
            
-           const card = cards.find(c => {
-             if (!c.card_code) return false;
-             const dbCodeMatch = c.card_code.match(/^([A-Z]+)-0*(\d+)/i);
-             const dbBaseCode = dbCodeMatch ? `${dbCodeMatch[1].toUpperCase()}-${dbCodeMatch[2]}` : c.card_code.toUpperCase();
-             return dbBaseCode === baseCode;
-           });
+           if (!card) {
+             const baseCodeMatch = cardCode.match(/^([A-Z]+)-0*(\d+)/i);
+             const baseCode = baseCodeMatch ? `${baseCodeMatch[1].toUpperCase()}-${baseCodeMatch[2]}` : cardCode.toUpperCase();
+             card = cards.find(c => {
+               if (!c.card_code) return false;
+               const dbCodeMatch = c.card_code.match(/^([A-Z]+)-0*(\d+)/i);
+               const dbBaseCode = dbCodeMatch ? `${dbCodeMatch[1].toUpperCase()}-${dbCodeMatch[2]}` : c.card_code.toUpperCase();
+               return dbBaseCode === baseCode;
+             });
+           }
+           
            if (card) {
              batchItems.push({
                 card_id: card.id,
