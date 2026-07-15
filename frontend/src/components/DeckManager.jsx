@@ -672,6 +672,17 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           </div>
         )}
       </div>
+      <ImportExportModal 
+        isOpen={showImportExport}
+        onClose={() => setShowImportExport(false)}
+        deckCards={deckCards}
+        deckName={deckName}
+        setDeckCards={setDeckCards}
+        setDeckName={setDeckName}
+        API_URL={API_URL}
+        initialMode={importExportInitialMode}
+        onImportSuccess={() => setCurrentDeck('new')}
+      />
     </div>
     );
   }
@@ -862,6 +873,12 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           <div className="flex gap-2">
             <button onClick={saveDeck} className="flex-1 bg-primary-600 hover:bg-primary-500 text-white py-1.5 rounded font-bold text-sm transition-colors shadow-sm">
               Save Deck
+            </button>
+            <button onClick={() => {
+              setImportExportInitialMode('export');
+              setShowImportExport(true);
+            }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
+              <Download size={16} /> Export
             </button>
           </div>
           {validation.errors.length > 0 ? (
