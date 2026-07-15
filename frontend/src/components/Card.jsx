@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Minus, Sparkles } from 'lucide-react';
 
-export default function Card({ card, collection, onUpdate }) {
+export default function Card({ card, collection, onUpdate, onClickCard }) {
   const [isUpdating, setIsUpdating] = useState(false);
   
   const normalCount = collection?.normal_count || 0;
@@ -28,7 +28,10 @@ export default function Card({ card, collection, onUpdate }) {
 
   return (
     <div className="glass-panel rounded-xl overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary-500/10 group">
-      <div className="relative aspect-[2.5/3.5] w-full bg-dark-900 overflow-hidden">
+      <div 
+        className={`relative aspect-[2.5/3.5] w-full bg-dark-900 overflow-hidden ${onClickCard ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+        onClick={() => onClickCard && onClickCard(card)}
+      >
         {card.image_url ? (
           <img 
             src={card.image_url} 
@@ -41,16 +44,6 @@ export default function Card({ card, collection, onUpdate }) {
             No Image
           </div>
         )}
-        <div className="absolute top-2 right-2 bg-dark-900/80 backdrop-blur px-2 py-1 rounded-lg text-sm font-bold text-primary-400 border border-dark-700">
-          {card.energy_cost !== null ? card.energy_cost : '?'}
-        </div>
-        <div className="absolute top-2 left-2 flex gap-1 flex-col">
-           {card.rarity && (
-             <span className="bg-dark-900/80 backdrop-blur px-2 py-1 rounded-lg text-xs font-semibold text-slate-300 border border-dark-700 capitalize">
-               {card.rarity}
-             </span>
-           )}
-        </div>
       </div>
       
       <div className="p-4 flex-1 flex flex-col">

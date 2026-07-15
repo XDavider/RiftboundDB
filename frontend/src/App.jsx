@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './components/Card';
 import DeckManager from './components/DeckManager';
-import { Search, Filter, Layers, Database, Upload } from 'lucide-react';
+import CardDetailModal from './components/CardDetailModal';
+import { Search, Filter, Layers, Database, Upload, Menu, X } from 'lucide-react';
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -22,10 +23,12 @@ function App() {
   const [groupBy, setGroupBy] = useState('None');
   
   // UI State
-  const [columns, setColumns] = useState(8);
+  const [columns, setColumns] = useState(6);
   const [totalDbCards, setTotalDbCards] = useState(0);
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'collection'
   const [mainTab, setMainTab] = useState('cards'); // 'cards' or 'decks'
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [selectedCardForModal, setSelectedCardForModal] = useState(null);
 
   const fetchCards = async () => {
     try {
@@ -220,16 +223,26 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-dark-900">
+    <div className="min-h-screen flex bg-dark-900 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {showSidebar && (
+        <div className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm" onClick={() => setShowSidebar(false)} />
+      )}
+
       {/* Sidebar / Filters */}
-      <aside className="w-full md:w-80 glass-panel border-r border-dark-700/50 flex flex-col sticky top-0 md:h-screen z-20">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-80 glass-panel border-r border-dark-700/50 flex flex-col transition-transform duration-300 md:static md:translate-x-0 bg-dark-900/95 backdrop-blur-xl ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-dark-700/50 flex flex-col gap-4">
-          <div>
-            <h1 className="text-2xl font-black bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent flex items-center gap-3">
-              <Layers className="text-primary-500" />
-              Riftbound
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">Collection Tracker</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-black bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent flex items-center gap-3">
+                <Layers className="text-primary-500" />
+                Riftbound
+              </h1>
+              <p className="text-sm text-slate-400 mt-1">Collection Tracker</p>
+            </div>
+            <button className="md:hidden p-2 text-slate-400 hover:text-white" onClick={() => setShowSidebar(false)}>
+              <X size={24} />
+            </button>
           </div>
           <div className="flex gap-1 bg-dark-900 border border-dark-700 p-1 rounded-xl">
             <button 
@@ -358,19 +371,24 @@ function App() {
 
       {/* Main Content */}
       {mainTab === 'cards' ? (
-        <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 flex flex-col h-screen overflow-hidden w-full relative z-10">
           {/* Topbar Stats */}
-          <header className="glass-panel border-b border-dark-700/50 p-6 flex flex-col sm:flex-row sm:items-center justify-between sticky top-0 z-10 gap-4">
-            <div className="flex flex-col gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-white">Your Collection</h2>
-                <p className="text-sm text-slate-400">Track and manage your physical cards</p>
+          <header className="glass-panel border-b border-dark-700/50 p-4 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between sticky top-0 z-10 gap-4 overflow-x-auto">
+            <div className="flex flex-col gap-3 min-w-max">
+              <div className="flex items-center gap-3">
+                <button className="md:hidden p-2 bg-dark-800 rounded-lg text-slate-300 hover:text-white transition-colors" onClick={() => setShowSidebar(true)}>
+                  <Menu size={20} />
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Your Collection</h2>
+                  <p className="text-sm text-slate-400 hidden sm:block">Track and manage your physical cards</p>
+                </div>
               </div>
               
-              <div className="flex gap-2 bg-dark-900 border border-dark-700 p-1 rounded-xl w-max">
+              <div className="flex flex-wrap gap-2 bg-dark-900 border border-dark-700 p-1 rounded-xl w-max">
                 <button 
                   onClick={() => setViewMode('all')} 
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${viewMode === 'all' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-dark-800'}`}
+                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${viewMode === 'all' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-dark-800'}`}
                 >All Cards</button>
                 <button 
                   onClick={() => setViewMode('collection')} 
@@ -429,13 +447,14 @@ function App() {
                         <span className="text-sm text-slate-500 font-medium">{groupCards.length} cards</span>
                       </div>
                     )}
-                    <div className="grid gap-4 sm:gap-6" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+                    <div className="grid gap-3 sm:gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                       {groupCards.map(card => (
                         <Card 
                           key={card.id} 
                           card={card} 
                           collection={collection[card.id]} 
-                          onUpdate={handleUpdateCollection}
+                          onUpdate={handleUpdateCollection} 
+                          onClickCard={setSelectedCardForModal}
                         />
                       ))}
                     </div>
@@ -453,16 +472,26 @@ function App() {
           </div>
         </main>
       ) : (
-        <DeckManager 
-          cards={displayedCards} 
-          collection={collection} 
-          API_URL={API_URL} 
-          columns={columns}
-          setColumns={setColumns}
-          setType={setType}
-          setDomain={setDomain}
-          setSearch={setSearch}
-        />
+        <div className="flex-1 flex flex-col h-screen overflow-hidden w-full relative z-10">
+          <div className="md:hidden p-3 bg-dark-900 border-b border-dark-700 flex justify-between items-center shrink-0">
+             <div className="flex items-center gap-3">
+               <button className="p-2 bg-dark-800 rounded-lg text-slate-300 hover:text-white" onClick={() => setShowSidebar(true)}>
+                 <Menu size={20} />
+               </button>
+               <h2 className="text-lg font-bold text-white">Decks</h2>
+             </div>
+          </div>
+          <DeckManager 
+            cards={displayedCards} 
+            collection={collection} 
+            API_URL={API_URL} 
+            columns={columns}
+            setColumns={setColumns}
+            setType={setType}
+            setDomain={setDomain}
+            setSearch={setSearch}
+          />
+        </div>
       )}
       
       {/* Required for shimmer animation in tailwind */}
@@ -471,6 +500,12 @@ function App() {
           100% { transform: translateX(100%); }
         }
       `}} />
+
+      {/* Card Detail Modal */}
+      <CardDetailModal 
+        card={selectedCardForModal} 
+        onClose={() => setSelectedCardForModal(null)} 
+      />
     </div>
   );
 }

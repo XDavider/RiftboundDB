@@ -40,3 +40,18 @@
 ::-webkit-scrollbar-corner {
   @apply bg-dark-900;
 }
+
+@keyframes card-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.animate-card-pop {
+  animation: card-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

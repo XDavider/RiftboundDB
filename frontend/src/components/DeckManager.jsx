@@ -18,6 +18,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
   const [previewSidebarTab, setPreviewSidebarTab] = useState('deck'); // 'deck' or 'stats'
   const [showImportExport, setShowImportExport] = useState(false);
   const [importExportInitialMode, setImportExportInitialMode] = useState('import');
+  const [hoveredRowCard, setHoveredRowCard] = useState(null);
 
   useEffect(() => {
     fetchDecks();
@@ -244,26 +245,32 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     const owned = (collection[c.card.id]?.normal_count || 0) + (collection[c.card.id]?.foil_count || 0);
     const missing = Math.max(0, c.quantity - owned);
     
+    const gradientClass = getDomainBorderGradient(c.card.element);
+    
     return (
       <div 
         key={c.card.id + c.section} 
-        className="relative group h-14 rounded-xl border border-dark-700 hover:border-primary-500 overflow-hidden cursor-pointer shadow-md mb-1.5 bg-dark-800" 
+        className={`relative group h-[58px] rounded-[13px] p-[2px] ${gradientClass} cursor-pointer shadow-md mb-1.5`} 
         onClick={() => removeCardFromDeck(c.card.id, c.section)}
+        onMouseEnter={() => setHoveredRowCard(c.card)}
+        onMouseLeave={() => setHoveredRowCard(null)}
       >
-        <div className="absolute inset-0">
-           {c.card.image_url && <img src={c.card.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-40 mix-blend-screen group-hover:scale-105 transition-transform" />}
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
-          <div className="flex items-center gap-3">
-             <div className="w-7 h-7 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
-               x{c.quantity}
-             </div>
-             <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[160px]">{c.card.name}</span>
+        <div className="w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden">
+          <div className="absolute inset-0">
+             {c.card.image_url && <img src={c.card.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-10 mix-blend-screen group-hover:scale-105 group-hover:opacity-50 transition-all duration-300" />}
           </div>
-          <div className="flex items-center gap-2 pointer-events-auto pr-1">
-            {missing > 0 && <span className="text-[10px] uppercase font-bold text-red-400 bg-red-950 px-1.5 py-0.5 rounded flex-shrink-0" title={`Missing ${missing}`}>-{missing}</span>}
-            <div className="w-7 h-7 flex items-center justify-center rounded-full bg-red-600/0 group-hover:bg-red-600 text-transparent group-hover:text-white transition-all shadow-sm">
-              <Trash2 size={14} />
+          <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
+            <div className="flex items-center gap-3">
+               <div className="w-7 h-7 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
+                 x{c.quantity}
+               </div>
+               <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[160px]">{c.card.name}</span>
+            </div>
+            <div className="flex items-center gap-2 pointer-events-auto pr-1">
+              {missing > 0 && <span className="text-[10px] uppercase font-bold text-red-400 bg-red-950 px-1.5 py-0.5 rounded flex-shrink-0" title={`Missing ${missing}`}>-{missing}</span>}
+              <div className="w-7 h-7 flex items-center justify-center rounded-full bg-red-600/0 group-hover:bg-red-600 text-transparent group-hover:text-white transition-all shadow-sm">
+                <Trash2 size={14} />
+              </div>
             </div>
           </div>
         </div>
@@ -350,16 +357,45 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     return `${colorMapFrom[d1] || 'from-dark-800'} ${colorMapTo[d2] || 'to-dark-950'}`;
   };
 
-  const getDomainTextColor = (domain) => {
-    const d = (domain || '').toLowerCase();
-    if (d === 'mind') return 'text-blue-400';
-    if (d === 'order') return 'text-yellow-400';
-    if (d === 'body') return 'text-orange-500';
-    if (d === 'chaos') return 'text-purple-500';
-    if (d === 'fury') return 'text-red-500';
-    if (d === 'calm') return 'text-green-500';
-    return 'text-primary-400';
+  const getDomainBorderGradient = (domainString) => {
+    if (!domainString) return 'bg-dark-700';
+    const domains = domainString.split(',').map(d => d.trim().toLowerCase());
+    
+    // Must use full class names for Tailwind JIT compiler to detect them
+    const gradientMap = {
+      mind: { single: 'bg-blue-500', from: 'from-blue-500', to: 'to-blue-500' },
+      order: { single: 'bg-yellow-400', from: 'from-yellow-400', to: 'to-yellow-400' },
+      body: { single: 'bg-orange-500', from: 'from-orange-500', to: 'to-orange-500' },
+      chaos: { single: 'bg-purple-500', from: 'from-purple-500', to: 'to-purple-500' },
+      fury: { single: 'bg-red-500', from: 'from-red-500', to: 'to-red-500' },
+      calm: { single: 'bg-green-500', from: 'from-green-500', to: 'to-green-500' },
+      life: { single: 'bg-green-500', from: 'from-green-500', to: 'to-green-500' },
+      death: { single: 'bg-purple-500', from: 'from-purple-500', to: 'to-purple-500' },
+      elemental: { single: 'bg-orange-500', from: 'from-orange-500', to: 'to-orange-500' }
+    };
+
+    const d1 = gradientMap[domains[0]] || { single: 'bg-dark-700', from: 'from-dark-700', to: 'to-dark-700' };
+    
+    if (domains.length > 1) {
+       const d2 = gradientMap[domains[1]] || { single: 'bg-dark-700', from: 'from-dark-700', to: 'to-dark-700' };
+       return `bg-gradient-to-br ${d1.from} from-50% ${d2.to} to-50%`;
+    }
+    
+    return d1.single;
   };
+
+  const getDomainStyles = (domain) => {
+    const d = (domain || '').toLowerCase();
+    if (d === 'mind') return { text: 'text-blue-400', border: 'border-blue-500/50 hover:border-blue-400', bg: 'bg-blue-500/20', bgDot: 'bg-blue-500' };
+    if (d === 'order') return { text: 'text-yellow-400', border: 'border-yellow-500/50 hover:border-yellow-400', bg: 'bg-yellow-500/20', bgDot: 'bg-yellow-500' };
+    if (d === 'body') return { text: 'text-orange-500', border: 'border-orange-500/50 hover:border-orange-400', bg: 'bg-orange-500/20', bgDot: 'bg-orange-500' };
+    if (d === 'chaos') return { text: 'text-purple-500', border: 'border-purple-500/50 hover:border-purple-400', bg: 'bg-purple-500/20', bgDot: 'bg-purple-500' };
+    if (d === 'fury') return { text: 'text-red-500', border: 'border-red-500/50 hover:border-red-400', bg: 'bg-red-500/20', bgDot: 'bg-red-500' };
+    if (d === 'calm') return { text: 'text-green-500', border: 'border-green-500/50 hover:border-green-400', bg: 'bg-green-500/20', bgDot: 'bg-green-500' };
+    return { text: 'text-primary-400', border: 'border-dark-700 hover:border-primary-500', bg: 'bg-dark-800', bgDot: 'bg-primary-500' };
+  };
+
+  const getDomainTextColor = (domain) => getDomainStyles(domain).text;
 
   // --- View: Deck Preview ---
   if (previewDeck && previewData) {
@@ -373,39 +409,48 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     const pMainGears = previewData.cards.filter(c => c.section === 'main' && c.card_type.toLowerCase() === 'gear');
     const pSideboard = previewData.cards.filter(c => c.section === 'sideboard');
 
-    const renderPreviewCard = (c, i) => (
-      <div key={i} className="relative group aspect-[63/88] rounded-xl overflow-hidden border border-dark-700 shadow-md">
-         <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-top" />
-         <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
-            {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
-         </div>
-      </div>
-    );
+    const renderPreviewCard = (c, i) => {
+      return (
+        <div key={i} className="relative group aspect-[63/88] rounded-xl overflow-hidden shadow-md border border-dark-700">
+           <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-top" />
+           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
+              {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
+           </div>
+        </div>
+      );
+    };
 
-    const renderBattlefieldCard = (c, i) => (
-      <div key={i} className="relative group aspect-[88/63] rounded-xl overflow-hidden border border-dark-700 shadow-md">
-         <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-center" />
-         <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
-            {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
-         </div>
-      </div>
-    );
+    const renderBattlefieldCard = (c, i) => {
+      return (
+        <div key={i} className="relative group aspect-[88/63] rounded-xl overflow-hidden shadow-md border border-dark-700">
+           <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-center" />
+           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
+              {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
+           </div>
+        </div>
+      );
+    };
 
     const renderCardRowReadOnly = (c) => {
+      const gradientClass = getDomainBorderGradient(c.element);
       return (
         <div 
           key={c.card_id + c.section} 
-          className="relative group h-12 rounded-xl border border-dark-700 overflow-hidden shadow-md mb-1.5 bg-dark-800" 
+          className={`relative group h-[50px] rounded-[13px] p-[2px] ${gradientClass} shadow-md mb-1.5`} 
+          onMouseEnter={() => setHoveredRowCard(c)}
+          onMouseLeave={() => setHoveredRowCard(null)}
         >
-          <div className="absolute inset-0">
-             {c.image_url && <img src={c.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-40 mix-blend-screen" />}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
-            <div className="flex items-center gap-3">
-               <div className="w-6 h-6 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
-                 x{c.quantity}
-               </div>
-               <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[180px]">{c.name}</span>
+          <div className="w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden">
+            <div className="absolute inset-0">
+               {c.image_url && <img src={c.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-10 mix-blend-screen group-hover:opacity-50 transition-all duration-300" />}
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
+              <div className="flex items-center gap-3">
+                 <div className="w-6 h-6 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
+                   x{c.quantity}
+                 </div>
+                 <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[180px]">{c.name}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -438,16 +483,15 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           
           {/* Commander Zone */}
           <section>
-            <h3 className="text-sm font-black text-primary-400 uppercase tracking-widest mb-2 border-b border-dark-700 pb-1">Commander Zone</h3>
             <div className="flex flex-wrap items-end gap-6">
               {pLegend && (
-                <div className="w-48 space-y-2">
+                <div className="w-32 sm:w-48 space-y-2">
                   <div className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Legend</div>
                   {renderPreviewCard(pLegend, 'leg')}
                 </div>
               )}
               {pChampion && (
-                <div className="w-48 space-y-2">
+                <div className="w-28 sm:w-44 space-y-2">
                   <div className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Champion</div>
                   {renderPreviewCard(pChampion, 'champ')}
                 </div>
@@ -662,6 +706,15 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
         )}
       </div>
 
+      {/* Floating Hover Card Preview */}
+      {hoveredRowCard && (
+        <div className={`hidden lg:block fixed top-1/2 -translate-y-1/2 right-[440px] z-[100] pointer-events-none transition-all duration-200 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[22rem]' : 'w-64'}`}>
+           <div className={`animate-card-pop relative rounded-xl overflow-hidden shadow-2xl border border-dark-600 shadow-black/50 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'aspect-[88/63]' : 'aspect-[63/88]'}`}>
+             <img src={hoveredRowCard.image_url} alt={hoveredRowCard.name} className="w-full h-full object-cover" />
+           </div>
+        </div>
+      )}
+
       <ImportExportModal 
         isOpen={showImportExport}
         onClose={() => setShowImportExport(false)}
@@ -734,19 +787,19 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
                 {/* Random Card Accents in background */}
                 {deck.random_cards && deck.random_cards.length > 0 && (
-                  <div className="absolute inset-x-0 bottom-8 h-48 opacity-0 group-hover:opacity-100 transition-all duration-500 z-30 flex justify-center items-end pointer-events-none">
+                  <div className="absolute inset-x-0 bottom-6 h-48 opacity-0 group-hover:opacity-100 transition-all duration-500 z-30 flex justify-center items-end pointer-events-none">
                      {deck.random_cards.slice(0, 5).map((img, idx, arr) => {
                        const offset = idx - (arr.length - 1) / 2;
-                       const rotation = offset * 12;
-                       const translateX = offset * 35;
-                       const translateY = Math.abs(offset) * Math.abs(offset) * 8;
+                       const rotation = offset * 15;
+                       const translateX = offset * 45;
+                       const translateY = Math.pow(Math.abs(offset), 1.5) * 12;
                        return (
                          <div 
                            key={idx} 
                            className="absolute bottom-0 transition-all duration-300"
-                           style={{ transform: `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotation}deg)`, zIndex: 10 + idx }}
+                           style={{ transform: `translateX(${translateX}px) translateY(${translateY}px) rotate(${rotation}deg)`, zIndex: 10 + idx, transformOrigin: 'bottom center' }}
                          >
-                           <div className="w-24 sm:w-28 aspect-[63/88] rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.8)] border border-dark-500 overflow-hidden transition-all duration-300 hover:scale-[1.6] hover:-translate-y-16 pointer-events-auto origin-bottom cursor-pointer hover:z-50 hover:rotate-0">
+                           <div className="w-24 sm:w-28 aspect-[63/88] rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.8)] border border-dark-500 overflow-hidden transition-all duration-300 hover:scale-[1.6] hover:-translate-y-16 pointer-events-auto cursor-pointer hover:z-50 hover:rotate-0">
                              <img src={img} alt="Accent" className="w-full h-full object-cover" />
                            </div>
                          </div>
@@ -776,11 +829,16 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                        
                        {deck.rune_counts && (
                          <div className="flex flex-col gap-1.5 items-end -mr-4 -mb-4 bg-dark-950/80 p-3 rounded-xl backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto">
-                           {Object.entries(deck.rune_counts).map(([domain, count]) => (
-                             <div key={domain} className="flex items-center gap-2 text-base font-black text-white drop-shadow-md">
-                               {count} <span className={getDomainTextColor(domain)}>{domain}</span>
-                             </div>
-                           ))}
+                           {Object.entries(deck.rune_counts).map(([domain, count]) => {
+                             const dNorm = domain.charAt(0).toUpperCase() + domain.slice(1).toLowerCase();
+                             return (
+                               <div key={domain} className="flex items-center gap-2 text-base font-black text-white drop-shadow-md">
+                                 {count} 
+                                 <img src={`https://cdn.piltoverarchive.com/colors/${dNorm}.webp`} alt={domain} className="w-5 h-5 object-contain" onError={(e) => e.target.style.display = 'none'} />
+                                 <span className={getDomainTextColor(domain)}>{domain}</span>
+                               </div>
+                             );
+                           })}
                          </div>
                        )}
                      </div>
@@ -808,9 +866,9 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
   // --- View: Deck Builder (Edit) ---
   return (
-    <div className="flex-1 flex h-screen overflow-hidden bg-dark-900">
+    <div className="flex-1 flex flex-col lg:flex-row h-screen overflow-hidden bg-dark-900">
       {/* Left: Card Catalog */}
-      <div className="flex-1 flex flex-col border-r border-dark-700/50 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:border-r border-dark-700/50 overflow-hidden">
         <header className="glass-panel border-b border-dark-700/50 p-4 flex justify-between items-center bg-dark-800 z-10">
           <div className="flex items-center gap-3">
             <button onClick={() => {
@@ -835,7 +893,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.max(2, columns - 1)}, minmax(0, 1fr))` }}>
+          <div className="grid gap-3 sm:gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
             {cards.map(card => (
               <div key={card.id} className="relative group cursor-pointer" onClick={() => addCardToDeck(card)}>
                 <div className="pointer-events-none">
@@ -851,7 +909,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       </div>
 
       {/* Right: Decklist */}
-      <div className="w-[26rem] flex flex-col bg-dark-950 border-l border-dark-700/50 relative z-20 shadow-2xl">
+      <div className="w-full lg:w-[26rem] flex flex-col bg-dark-950 border-t lg:border-t-0 lg:border-l border-dark-700/50 relative z-20 shadow-2xl h-[50vh] lg:h-full shrink-0">
         <div className="p-4 border-b border-dark-700 flex flex-col gap-3 bg-dark-900">
           <input 
             type="text" value={deckName} onChange={e => setDeckName(e.target.value)}
@@ -997,13 +1055,16 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                    <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
                      <h4 className="text-xs uppercase font-bold text-slate-400 mb-3">Domains</h4>
                      <div className="flex flex-wrap gap-2">
-                       {Object.entries(domainCounts).map(([domain, count]) => (
-                         <div key={domain} className="flex items-center gap-1.5 bg-dark-900 px-3 py-1.5 rounded border border-dark-700 shadow-inner">
-                           <span className={`w-2 h-2 rounded-full ${getDomainTextColor(domain).replace('text-', 'bg-')}`}></span>
-                           <span className="text-sm font-black text-white">{count}</span>
-                           <span className="text-[10px] uppercase text-slate-500">{domain}</span>
-                         </div>
-                       ))}
+                       {Object.entries(domainCounts).map(([domain, count]) => {
+                         const dNorm = domain.charAt(0).toUpperCase() + domain.slice(1).toLowerCase();
+                         return (
+                           <div key={domain} className="flex items-center gap-1.5 bg-dark-900 px-3 py-1.5 rounded border border-dark-700 shadow-inner">
+                             <img src={`https://cdn.piltoverarchive.com/colors/${dNorm}.webp`} alt={domain} className="w-4 h-4 object-contain" onError={(e) => e.target.style.display = 'none'} />
+                             <span className="text-sm font-black text-white">{count}</span>
+                             <span className="text-[10px] uppercase text-slate-500">{domain}</span>
+                           </div>
+                         );
+                       })}
                      </div>
                    </div>
                 </div>
@@ -1012,6 +1073,14 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
           </div>
         )}
       </div>
+      {/* Floating Hover Card Preview */}
+      {hoveredRowCard && (
+        <div className={`hidden lg:block fixed top-1/2 -translate-y-1/2 right-[440px] z-[100] pointer-events-none transition-all duration-200 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[22rem]' : 'w-64'}`}>
+           <div className={`animate-card-pop relative rounded-xl overflow-hidden shadow-2xl border border-dark-600 shadow-black/50 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'aspect-[88/63]' : 'aspect-[63/88]'}`}>
+             <img src={hoveredRowCard.image_url} alt={hoveredRowCard.name} className="w-full h-full object-cover" />
+           </div>
+        </div>
+      )}
       
       <ImportExportModal 
         isOpen={showImportExport}
