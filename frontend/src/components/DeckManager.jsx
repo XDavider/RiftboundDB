@@ -671,19 +671,18 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
             })()}
           </div>
         )}
+        <ImportExportModal 
+          isOpen={showImportExport}
+          onClose={() => setShowImportExport(false)}
+          deckCards={deckCards}
+          deckName={deckName}
+          setDeckCards={setDeckCards}
+          setDeckName={setDeckName}
+          API_URL={API_URL}
+          initialMode={importExportInitialMode}
+          onImportSuccess={() => setCurrentDeck('new')}
+        />
       </div>
-      <ImportExportModal 
-        isOpen={showImportExport}
-        onClose={() => setShowImportExport(false)}
-        deckCards={deckCards}
-        deckName={deckName}
-        setDeckCards={setDeckCards}
-        setDeckName={setDeckName}
-        API_URL={API_URL}
-        initialMode={importExportInitialMode}
-        onImportSuccess={() => setCurrentDeck('new')}
-      />
-    </div>
     );
   }
 
