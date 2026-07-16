@@ -1,6 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { X, Shield, Swords, Zap, Loader2 } from 'lucide-react';
 
+const formatCardTextHTML = (text) => {
+  if (!text) return '';
+  let formatted = text;
+  
+  // Keywords [Texto]
+  formatted = formatted.replace(/\[(.*?)\]/g, (match, p1) => {
+    if (p1 === '>') {
+      return `<span class="inline-block text-primary-400 font-bold mx-0.5">➔</span>`;
+    }
+    
+    let keywordName = p1;
+    let numberPart = '';
+    const matchNumber = p1.match(/^([a-zA-Z\s]+?)\s+(\d+)$/);
+    if (matchNumber) {
+      keywordName = matchNumber[1].trim();
+      numberPart = `<span class="inline-block text-slate-200 font-black ml-1 text-xs">${matchNumber[2]}</span>`;
+    }
+
+    const svgName = keywordName.toUpperCase().replace(/\s+/g, '_');
+    const titleCaseName = keywordName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('_');
+    const fallbackHTML = `<span class="inline-block bg-primary-900/60 text-primary-300 border border-primary-700/50 px-1.5 py-0.5 rounded text-xs font-black uppercase tracking-wider mx-0.5 shadow-sm">${p1}</span>`.replace(/"/g, '&quot;');
+    
+    return `<span class="inline-flex items-center mx-0.5 align-text-bottom"><img src="https://cdn.piltoverarchive.com/description_keywords/${svgName}.svg" class="inline-block h-[22px] object-contain" alt="${keywordName}" onerror="if(!this.dataset.retry){ this.dataset.retry='1'; this.src='https://cdn.piltoverarchive.com/description_keywords/${titleCaseName}.svg'; } else { this.parentElement.outerHTML='${fallbackHTML}'; }" />${numberPart}</span>`;
+  });
+
+  // Energy: :rb_energy_X:
+  formatted = formatted.replace(/:rb_energy_(\d+):/g, (match, p1) => {
+    return `<span class="inline-flex items-center justify-center w-[22px] h-[22px] rounded-full bg-slate-100 border border-slate-300 text-dark-950 text-xs font-black mx-0.5 shadow-inner" style="vertical-align: text-bottom;">${p1}</span>`;
+  });
+
+  // Might: :rb_might:
+  formatted = formatted.replace(/:rb_might:/g, () => {
+    return `<img src="https://cdn.piltoverarchive.com/icons/might.webp" class="inline-block w-[20px] h-[20px] mx-0.5 object-contain" style="vertical-align: -0.2em;" alt="might" onerror="this.style.display='none'" />`;
+  });
+
+  // Exhaust: :rb_exhaust:
+  formatted = formatted.replace(/:rb_exhaust:/g, () => {
+    return `<img src="https://cdn.piltoverarchive.com/icons/tap.webp" class="inline-block w-[20px] h-[20px] mx-0.5 object-contain" style="vertical-align: -0.2em;" alt="exhaust" onerror="this.style.display='none'" />`;
+  });
+
+  // Runes: :rb_rune_domain:
+  formatted = formatted.replace(/:rb_rune_([a-zA-Z0-9_]+):/g, (match, p1) => {
+    if (p1.toLowerCase() === 'rainbow') {
+      return `<img src="https://cdn.piltoverarchive.com/icons/rune.webp" class="inline-block w-[20px] h-[20px] mx-0.5 object-contain" style="vertical-align: -0.2em;" alt="${p1}" onerror="this.style.display='none'" />`;
+    }
+    const dNorm = p1.charAt(0).toUpperCase() + p1.slice(1).toLowerCase();
+    return `<img src="https://cdn.piltoverarchive.com/colors/${dNorm}.webp" class="inline-block w-[20px] h-[20px] mx-0.5 object-contain" style="vertical-align: -0.2em;" alt="${p1}" onerror="this.style.display='none'" />`;
+  });
+
+  if (!formatted.includes('<p>') && !formatted.includes('<br>')) {
+      formatted = formatted.replace(/\n/g, '<br>');
+  }
+
+  return formatted;
+};
+
 export default function CardDetailModal({ card, onClose }) {
   const [richData, setRichData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -133,7 +189,13 @@ export default function CardDetailModal({ card, onClose }) {
             
             <div className="flex flex-wrap gap-2 mt-3">
               {displayCard.card_type && (
-                <span className="px-3 py-1 rounded bg-dark-800 border border-dark-700 text-xs font-bold uppercase tracking-wider text-slate-300">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded bg-dark-800 border border-dark-700 text-xs font-bold uppercase tracking-wider text-slate-300">
+                  <img 
+                    src={`https://cdn.piltoverarchive.com/types/${displayCard.card_type.toLowerCase()}.webp`} 
+                    alt={displayCard.card_type}
+                    className="w-4 h-4 object-contain"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
                   {displayCard.card_type}
                 </span>
               )}
@@ -149,7 +211,13 @@ export default function CardDetailModal({ card, onClose }) {
                 );
               })}
               {displayCard.rarity && (
-                <span className="px-3 py-1 rounded bg-purple-500/20 border border-purple-500/30 text-xs font-bold uppercase tracking-wider text-purple-400">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded bg-purple-500/20 border border-purple-500/30 text-xs font-bold uppercase tracking-wider text-purple-400">
+                  <img 
+                    src={`https://cdn.piltoverarchive.com/rarities/${displayCard.rarity.toLowerCase().replace(/\s+/g, '_')}.webp`} 
+                    alt={displayCard.rarity}
+                    className="w-4 h-4 object-contain"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
                   {displayCard.rarity}
                 </span>
               )}
@@ -166,15 +234,18 @@ export default function CardDetailModal({ card, onClose }) {
           {/* Attributes */}
           {(displayCard.energy_cost !== undefined && displayCard.energy_cost !== null) || (displayCard.attack !== undefined && displayCard.attack !== null) || (displayCard.health !== undefined && displayCard.health !== null) ? (
             <div className="flex flex-wrap gap-4">
-              {displayCard.energy_cost !== undefined && displayCard.energy_cost !== null && (
-                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-xl">
-                  <Zap className="text-amber-500" size={24} />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold uppercase text-amber-500/70">Energy</span>
-                    <span className="text-2xl font-black text-amber-400 leading-none">{displayCard.energy_cost}</span>
+              {displayCard.energy_cost !== undefined && displayCard.energy_cost !== null && (() => {
+                const colors = getPowerColorClasses(displayCard.element);
+                return (
+                  <div className={`flex items-center gap-3 ${colors.bg} border ${colors.border} px-4 py-2 rounded-xl`}>
+                    <Zap className="text-white" size={24} />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold uppercase text-white/70">Energy</span>
+                      <span className="text-2xl font-black text-white leading-none">{displayCard.energy_cost}</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {displayCard.attack !== undefined && displayCard.attack !== null && (() => {
                 const colors = getPowerColorClasses(displayCard.element);
                 return (
@@ -194,11 +265,11 @@ export default function CardDetailModal({ card, onClose }) {
                 );
               })()}
               {displayCard.health !== undefined && displayCard.health !== null && (
-                <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/20 px-4 py-2 rounded-xl">
-                  <Shield className="text-yellow-500" size={24} />
+                <div className="flex items-center gap-3 bg-slate-500/10 border border-slate-500/20 px-4 py-2 rounded-xl">
+                  <Shield className="text-slate-300" size={24} />
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold uppercase text-yellow-500/70">Might</span>
-                    <span className="text-2xl font-black text-yellow-400 leading-none">{displayCard.health}</span>
+                    <span className="text-xs font-bold uppercase text-slate-400">Might</span>
+                    <span className="text-2xl font-black text-white leading-none">{displayCard.health}</span>
                   </div>
                 </div>
               )}
@@ -216,9 +287,9 @@ export default function CardDetailModal({ card, onClose }) {
               <div className="bg-dark-950/50 border border-dark-800/50 rounded-xl p-5 shadow-inner">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Card Effect</h4>
                 {displayCard.text_rich ? (
-                  <div className="text-slate-200 text-sm md:text-base leading-relaxed prose prose-invert prose-p:my-2" dangerouslySetInnerHTML={{ __html: displayCard.text_rich }}></div>
+                  <div className="text-slate-200 text-sm md:text-base leading-relaxed prose prose-invert prose-p:my-2 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatCardTextHTML(displayCard.text_rich) }}></div>
                 ) : (
-                  <div className="text-slate-200 text-sm md:text-base leading-relaxed whitespace-pre-wrap">{displayCard.text_plain}</div>
+                  <div className="text-slate-200 text-sm md:text-base leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatCardTextHTML(displayCard.text_plain) }}></div>
                 )}
               </div>
             ) : (

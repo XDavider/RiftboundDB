@@ -1,0 +1,30 @@
+import pool from './backend/db.js';
+
+async function test() {
+  try {
+    const r = await pool.query(`
+      SELECT d.id,
+             (
+               SELECT COALESCE(SUM(dc.quantity), 0)
+               FROM deck_cards dc
+               JOIN cards rc ON dc.card_id = rc.id
+               WHERE dc.deck_id = d.id AND rc.card_type NOT ILIKE '%Rune%'
+             ) as total_cards,
+             (
+               SELECT COALESCE(SUM(LEAST(dc.quantity, COALESCE(col.normal_count, 0) + COALESCE(col.foil_count, 0))), 0)
+               FROM deck_cards dc
+               JOIN cards rc ON dc.card_id = rc.id
+               LEFT JOIN collection col ON dc.card_id = col.card_id
+               WHERE dc.deck_id = d.id AND rc.card_type NOT ILIKE '%Rune%'
+             ) as owned_cards
+      FROM decks d
+      LIMIT 1
+    `);
+    console.log(r.rows);
+  } catch (err) {
+    console.error("FULL ERROR:", err);
+  } finally {
+    process.exit(0);
+  }
+}
+test();

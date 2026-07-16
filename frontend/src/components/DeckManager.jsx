@@ -3,7 +3,7 @@ import { Layers, Plus, Trash2, ChevronLeft, AlertCircle, CheckCircle2, Edit2, X,
 import Card from './Card';
 import ImportExportModal from './ImportExportModal';
 
-export default function DeckManager({ cards, collection, API_URL, columns, setColumns, setType, setDomain, setSearch }) {
+export default function DeckManager({ cards, collection, API_URL, columns, setColumns, setType, setDomain, setSearch, onClickCard }) {
   const [decks, setDecks] = useState([]);
   const [currentDeck, setCurrentDeck] = useState(null); // id of deck being edited, or 'new'
   const [previewDeck, setPreviewDeck] = useState(null); // id of deck being previewed
@@ -13,12 +13,26 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
   // Deck builder state
   const [deckCards, setDeckCards] = useState([]); // { card, section, quantity }
   const [deckName, setDeckName] = useState('New Deck');
+  const [deckDescription, setDeckDescription] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [targetSection, setTargetSection] = useState(null); // Explicit target selection
+
   const [sidebarTab, setSidebarTab] = useState('deck'); // 'deck' or 'stats'
   const [previewSidebarTab, setPreviewSidebarTab] = useState('deck'); // 'deck' or 'stats'
   const [showImportExport, setShowImportExport] = useState(false);
   const [importExportInitialMode, setImportExportInitialMode] = useState('import');
   const [hoveredRowCard, setHoveredRowCard] = useState(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (hoveredRowCard) {
+        setMousePos({ x: e.clientX, y: e.clientY });
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [hoveredRowCard]);
 
   useEffect(() => {
     fetchDecks();
@@ -49,18 +63,19 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       }
       
       setCurrentDeck(deckData.id);
-      setDeckName(deckData.name);
+      setDeckName(deckData.name || '');
+      setDeckDescription(deckData.description || '');
       const mapped = deckData.cards.map(c => ({
         card: { ...c, id: c.card_id }, // map db joined fields
         section: c.section,
         quantity: c.quantity
       }));
       if (deckData.legend_id) {
-        const leg = collection.find(c => c.id === deckData.legend_id);
+        const leg = cards.find(c => c.id === deckData.legend_id);
         if (leg) mapped.push({ card: leg, section: 'legend', quantity: 1 });
       }
       if (deckData.champion_id) {
-        const champ = collection.find(c => c.id === deckData.champion_id);
+        const champ = cards.find(c => c.id === deckData.champion_id);
         if (champ) mapped.push({ card: champ, section: 'champion', quantity: 1 });
       }
       setDeckCards(mapped);
@@ -88,9 +103,15 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       const legend = deckCards.find(c => c.section === 'legend')?.card;
       const champion = deckCards.find(c => c.section === 'champion')?.card;
       
+      let finalName = deckName.trim();
+      if (!finalName) {
+        finalName = legend ? `${legend.name.split('-')[0].trim()} Deck` : 'New Deck';
+      }
+      
       const payload = {
         id: currentDeck === 'new' ? undefined : currentDeck,
-        name: deckName,
+        name: finalName,
+        description: deckDescription,
         legend_id: legend?.id || null,
         champion_id: champion?.id || null,
         cards: deckCards.map(c => ({
@@ -108,7 +129,8 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       const data = await res.json();
       if (data.success) {
         setCurrentDeck(null); // Exit edit mode
-        openPreview(data.id); // Go directly to preview
+        setPreviewDeck(null); // Go to decks list
+        setShowSaveModal(false);
         fetchDecks(); // refresh list in background
       }
     } catch (err) {
@@ -132,7 +154,8 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
   const startNewDeck = () => {
     setPreviewDeck(null);
     setCurrentDeck('new');
-    setDeckName('New Deck');
+    setDeckName('');
+    setDeckDescription('');
     setDeckCards([]);
     setTargetSection(null);
   };
@@ -242,29 +265,34 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
   }, [deckCards]);
 
   const renderCardRow = (c) => {
+    const isRune = c.section === 'rune' || (c.card.card_type && c.card.card_type.toLowerCase().includes('rune'));
     const owned = (collection[c.card.id]?.normal_count || 0) + (collection[c.card.id]?.foil_count || 0);
-    const missing = Math.max(0, c.quantity - owned);
+    const missing = isRune ? 0 : Math.max(0, c.quantity - owned);
+    const isMissingAll = !isRune && owned === 0;
+    const isPartial = !isRune && owned > 0 && owned < c.quantity;
+    const badgeColor = isRune ? 'text-primary-400 border-dark-600' : isMissingAll ? 'text-red-400 border-red-500/50 shadow-red-500/20' : isPartial ? 'text-amber-400 border-amber-500/50 shadow-amber-500/20' : 'text-green-400 border-green-500/50 shadow-green-500/20';
+    const tooltip = isRune ? `x${c.quantity}` : `Owned: ${owned} / ${c.quantity}`;
     
     const gradientClass = getDomainBorderGradient(c.card.element);
     
     return (
       <div 
         key={c.card.id + c.section} 
-        className={`relative group h-[58px] rounded-[13px] p-[2px] ${gradientClass} cursor-pointer shadow-md mb-1.5`} 
+        className={`relative group h-[64px] rounded-[13px] p-[2px] ${gradientClass} cursor-pointer shadow-md mb-3 transition-transform hover:scale-[1.02] hover:z-10`} 
         onClick={() => removeCardFromDeck(c.card.id, c.section)}
         onMouseEnter={() => setHoveredRowCard(c.card)}
-        onMouseLeave={() => setHoveredRowCard(null)}
       >
-        <div className="w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden">
+        <div className={`w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden`}>
           <div className="absolute inset-0">
-             {c.card.image_url && <img src={c.card.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-10 mix-blend-screen group-hover:scale-105 group-hover:opacity-50 transition-all duration-300" />}
+             {c.card.image_url && <img src={c.card.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-100 group-hover:scale-110 group-hover:brightness-110 transition-all duration-300" />}
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-r from-dark-900/90 via-dark-900/40 to-transparent group-hover:from-dark-900/70 group-hover:via-transparent flex items-center justify-between p-2 pointer-events-none transition-all">
             <div className="flex items-center gap-3">
-               <div className="w-7 h-7 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
-                 x{c.quantity}
+               <div title={tooltip} className={`px-1 min-w-[28px] h-7 rounded border flex items-center justify-center bg-dark-950/80 backdrop-blur-sm font-bold text-[11px] shadow-inner pointer-events-auto transition-all ${badgeColor}`}>
+                 <span className="block group-hover:hidden text-xs">x{c.quantity}</span>
+                 <span className="hidden group-hover:block tracking-tighter">{isRune ? `x${c.quantity}` : `${owned}-${c.quantity}`}</span>
                </div>
-               <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[160px]">{c.card.name}</span>
+               {c.section !== 'rune' && <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[160px]">{c.card.name}</span>}
             </div>
             <div className="flex items-center gap-2 pointer-events-auto pr-1">
               {missing > 0 && <span className="text-[10px] uppercase font-bold text-red-400 bg-red-950 px-1.5 py-0.5 rounded flex-shrink-0" title={`Missing ${missing}`}>-{missing}</span>}
@@ -397,6 +425,25 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
   const getDomainTextColor = (domain) => getDomainStyles(domain).text;
 
+  const getHoverPosStyle = () => {
+    const isBattlefield = hoveredRowCard?.card_type?.toLowerCase() === 'battlefield';
+    const cardWidth = isBattlefield ? 384 : 280;
+    const cardHeight = isBattlefield ? 275 : 391;
+    
+    const isRightHalf = mousePos.x > window.innerWidth / 2;
+    const isBottomHalf = mousePos.y > window.innerHeight / 2;
+
+    let x = isRightHalf ? mousePos.x - cardWidth - 20 : mousePos.x + 20;
+    let y = isBottomHalf ? mousePos.y - cardHeight - 20 : mousePos.y + 20;
+    
+    if (x + cardWidth > window.innerWidth - 10) x = window.innerWidth - cardWidth - 10;
+    if (x < 10) x = 10;
+    if (y + cardHeight > window.innerHeight - 10) y = window.innerHeight - cardHeight - 10;
+    if (y < 10) y = 10;
+    
+    return { left: `${x}px`, top: `${y}px` };
+  };
+
   // --- View: Deck Preview ---
   if (previewDeck && previewData) {
     const pLegend = previewData.cards.find(c => c.section === 'legend');
@@ -410,22 +457,54 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     const pSideboard = previewData.cards.filter(c => c.section === 'sideboard');
 
     const renderPreviewCard = (c, i) => {
+      const isRune = c.section === 'rune' || (c.card_type && c.card_type.toLowerCase().includes('rune'));
+      const owned = (collection[c.card_id]?.normal_count || 0) + (collection[c.card_id]?.foil_count || 0);
+      const isMissingAll = !isRune && owned === 0;
+      const isPartial = !isRune && owned > 0 && owned < c.quantity;
+      const badgeColor = isRune ? 'text-primary-400' : isMissingAll ? 'text-red-400' : isPartial ? 'text-amber-400' : 'text-green-400';
+      const tooltip = isRune ? `x${c.quantity}` : `Owned: ${owned} / ${c.quantity}`;
+
       return (
-        <div key={i} className="relative group aspect-[63/88] rounded-xl overflow-hidden shadow-md border border-dark-700">
+        <div 
+          key={i} 
+          className={`relative group aspect-[63/88] rounded-xl overflow-hidden shadow-md border border-dark-700 cursor-pointer transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:shadow-xl hover:shadow-primary-500/20 hover:z-10 ${isMissingAll ? 'grayscale-[50%] opacity-80' : ''}`}
+          onClick={() => onClickCard && onClickCard(c)}
+          onMouseEnter={() => setHoveredRowCard(c)}
+          onMouseLeave={() => setHoveredRowCard(null)}
+        >
            <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-top" />
-           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
-              {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
+           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center pointer-events-none">
+              <span title={tooltip} className={`inline-flex items-center justify-center font-bold ${badgeColor} bg-black/80 px-2 min-w-[28px] h-5 rounded-full text-[11px] pointer-events-auto transition-all`}>
+                 <span className="block group-hover:hidden text-xs">x{c.quantity}</span>
+                 <span className="hidden group-hover:block tracking-tighter">{isRune ? `x${c.quantity}` : `${owned}-${c.quantity}`}</span>
+              </span>
            </div>
         </div>
       );
     };
 
     const renderBattlefieldCard = (c, i) => {
+      const isRune = c.section === 'rune' || (c.card_type && c.card_type.toLowerCase().includes('rune'));
+      const owned = (collection[c.card_id]?.normal_count || 0) + (collection[c.card_id]?.foil_count || 0);
+      const isMissingAll = !isRune && owned === 0;
+      const isPartial = !isRune && owned > 0 && owned < c.quantity;
+      const badgeColor = isRune ? 'text-primary-400' : isMissingAll ? 'text-red-400' : isPartial ? 'text-amber-400' : 'text-green-400';
+      const tooltip = isRune ? `x${c.quantity}` : `Owned: ${owned} / ${c.quantity}`;
+
       return (
-        <div key={i} className="relative group aspect-[88/63] rounded-xl overflow-hidden shadow-md border border-dark-700">
+        <div 
+          key={i} 
+          className={`relative group aspect-[88/63] rounded-xl overflow-hidden shadow-md border border-dark-700 cursor-pointer transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:shadow-xl hover:shadow-primary-500/20 hover:z-10 ${isMissingAll ? 'grayscale-[50%] opacity-80' : ''}`}
+          onClick={() => onClickCard && onClickCard(c)}
+          onMouseEnter={() => setHoveredRowCard(c)}
+          onMouseLeave={() => setHoveredRowCard(null)}
+        >
            <img src={c.image_url} alt={c.name} className="w-full h-full object-cover object-center" />
-           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center">
-              {c.quantity > 1 && <span className="font-bold text-primary-400 bg-black/60 px-2 rounded-full text-xs">x{c.quantity}</span>}
+           <div className="absolute inset-x-0 bottom-0 p-1 bg-gradient-to-t from-black to-transparent text-center pointer-events-none">
+              <span title={tooltip} className={`inline-flex items-center justify-center font-bold ${badgeColor} bg-black/80 px-2 min-w-[28px] h-5 rounded-full text-[11px] pointer-events-auto transition-all`}>
+                 <span className="block group-hover:hidden text-xs">x{c.quantity}</span>
+                 <span className="hidden group-hover:block tracking-tighter">{isRune ? `x${c.quantity}` : `${owned}-${c.quantity}`}</span>
+              </span>
            </div>
         </div>
       );
@@ -433,23 +512,32 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
     const renderCardRowReadOnly = (c) => {
       const gradientClass = getDomainBorderGradient(c.element);
+      const isRune = c.section === 'rune' || (c.card_type && c.card_type.toLowerCase().includes('rune'));
+      const owned = (collection[c.card_id]?.normal_count || 0) + (collection[c.card_id]?.foil_count || 0);
+      const isMissingAll = !isRune && owned === 0;
+      const isPartial = !isRune && owned > 0 && owned < c.quantity;
+      const badgeColor = isRune ? 'text-primary-400 border-dark-600' : isMissingAll ? 'text-red-400 border-red-500/50 shadow-red-500/20' : isPartial ? 'text-amber-400 border-amber-500/50 shadow-amber-500/20' : 'text-green-400 border-green-500/50 shadow-green-500/20';
+      const tooltip = isRune ? `x${c.quantity}` : `Owned: ${owned} / ${c.quantity}`;
+
       return (
         <div 
           key={c.card_id + c.section} 
-          className={`relative group h-[50px] rounded-[13px] p-[2px] ${gradientClass} shadow-md mb-1.5`} 
+          className={`relative group h-[56px] rounded-[13px] p-[2px] ${gradientClass} shadow-md mb-3 cursor-pointer transition-transform hover:scale-[1.02] hover:z-10`} 
+          onClick={() => onClickCard && onClickCard(c)}
           onMouseEnter={() => setHoveredRowCard(c)}
           onMouseLeave={() => setHoveredRowCard(null)}
         >
-          <div className="w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden">
+          <div className={`w-full h-full relative rounded-[11px] bg-dark-800 overflow-hidden`}>
             <div className="absolute inset-0">
-               {c.image_url && <img src={c.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-10 mix-blend-screen group-hover:opacity-50 transition-all duration-300" />}
+               {c.image_url && <img src={c.image_url} alt="" className="w-full h-full object-cover object-[center_30%] opacity-100 group-hover:scale-110 group-hover:brightness-110 transition-all duration-300" />}
             </div>
-            <div className="absolute inset-0 bg-gradient-to-r from-dark-900 via-dark-900/80 to-transparent flex items-center justify-between p-2 pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-r from-dark-900/90 via-dark-900/40 to-transparent group-hover:from-dark-900/70 group-hover:via-transparent flex items-center justify-between p-2 pointer-events-none transition-all">
               <div className="flex items-center gap-3">
-                 <div className="w-6 h-6 rounded border border-dark-600 flex items-center justify-center bg-dark-950/80 backdrop-blur-sm text-primary-400 font-bold text-xs shadow-inner">
-                   x{c.quantity}
+                 <div title={tooltip} className={`px-1 min-w-[24px] h-6 rounded border flex items-center justify-center bg-dark-950/80 backdrop-blur-sm font-bold text-[10px] shadow-inner pointer-events-auto transition-all ${badgeColor}`}>
+                   <span className="block group-hover:hidden text-xs">x{c.quantity}</span>
+                   <span className="hidden group-hover:block tracking-tighter">{isRune ? `x${c.quantity}` : `${owned}-${c.quantity}`}</span>
                  </div>
-                 <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[180px]">{c.name}</span>
+                 {c.section !== 'rune' && <span className="text-sm font-bold text-white drop-shadow-md truncate max-w-[180px]">{c.name}</span>}
               </div>
             </div>
           </div>
@@ -458,7 +546,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
     };
 
     return (
-      <div className="flex-1 flex h-screen overflow-hidden bg-dark-900">
+      <div className="flex-1 flex flex-col lg:flex-row h-full bg-dark-950 overflow-hidden relative">
         <div className="flex-1 flex flex-col h-full bg-dark-950 overflow-y-auto">
           {/* Header */}
           <header className="sticky top-0 z-50 glass-panel border-b border-dark-700/50 p-3 flex justify-between items-center bg-dark-900/90 backdrop-blur-xl shadow-xl">
@@ -634,6 +722,8 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
               const avgEnergy = totalCards > 0 ? (totalEnergy / totalCards).toFixed(1) : '0.0';
               const maxE = Math.max(...Object.values(energyCounts), 1);
+              const topDomain = Object.entries(domainCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || 'Neutral';
+              const curveColorClass = getDomainStyles(topDomain).bgDot;
 
               return (
                 <div className="p-4 space-y-4">
@@ -644,7 +734,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                         <span className="text-[9px] uppercase font-bold text-slate-500">Cards</span>
                       </div>
                       <div className="bg-dark-800 p-3 rounded-xl border border-dark-700 flex flex-col items-center justify-center">
-                        <span className="text-xl font-black text-amber-400">{avgEnergy}</span>
+                        <span className={`text-xl font-black ${getDomainStyles(topDomain).text}`}>{avgEnergy}</span>
                         <span className="text-[9px] uppercase font-bold text-slate-500">Avg Energy</span>
                       </div>
                    </div>
@@ -653,7 +743,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                    <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
                      <h4 className="text-xs uppercase font-bold text-slate-400 mb-4 flex items-center justify-between">
                         <span>Energy Curve</span>
-                        <span className="text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">Avg {avgEnergy}</span>
+                        <span className={`${getDomainStyles(topDomain).text} ${getDomainStyles(topDomain).bg} px-2 py-0.5 rounded`}>Avg {avgEnergy}</span>
                      </h4>
                      <div className="flex items-end justify-between h-24 gap-1">
                        {[0,1,2,3,4,5,6,7].map(cost => {
@@ -662,7 +752,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                          return (
                            <div key={cost} className="flex flex-col items-center flex-1 h-full gap-1 group">
                              <div className="w-full bg-dark-900 rounded-t-sm h-full flex items-end justify-center">
-                                <div className="w-full bg-amber-500 rounded-t-sm transition-all relative" style={{ height: `${height}%` }}>
+                                <div className={`w-full ${curveColorClass} rounded-t-sm transition-all relative`} style={{ height: `${height}%` }}>
                                    {count > 0 && <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white opacity-0 group-hover:opacity-100">{count}</span>}
                                 </div>
                              </div>
@@ -708,7 +798,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
       {/* Floating Hover Card Preview */}
       {hoveredRowCard && (
-        <div className={`hidden lg:block fixed top-1/2 -translate-y-1/2 right-[440px] z-[100] pointer-events-none transition-all duration-200 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[22rem]' : 'w-64'}`}>
+        <div className={`hidden lg:block fixed top-1/2 -translate-y-1/2 right-[440px] z-[100] pointer-events-none transition-all duration-200 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[384px]' : 'w-[280px]'}`}>
            <div className={`animate-card-pop relative rounded-xl overflow-hidden shadow-2xl border border-dark-600 shadow-black/50 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'aspect-[88/63]' : 'aspect-[63/88]'}`}>
              <img src={hoveredRowCard.image_url} alt={hoveredRowCard.name} className="w-full h-full object-cover" />
            </div>
@@ -739,9 +829,19 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
             <h2 className="text-2xl font-black text-white">Your Decks</h2>
             <p className="text-sm text-slate-400">Manage and preview your custom decks</p>
           </div>
+          <div className="flex items-center gap-3 bg-dark-900 border border-dark-700 rounded-xl px-4 py-2 hidden sm:flex">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Size</span>
+            <input 
+              type="number" 
+              min="2" max="15" 
+              value={columns} 
+              onChange={e => setColumns(Number(e.target.value))} 
+              className="w-16 bg-dark-800 text-white border border-dark-700 rounded px-2 py-1 focus:outline-none focus:border-primary-500 text-sm" 
+            />
+          </div>
         </header>
         
-        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="p-8 grid gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
           
           {/* New Deck Card */}
           <div 
@@ -771,9 +871,21 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
             decks.map(deck => (
               <div 
                 key={deck.id} 
-                className="relative bg-dark-800 rounded-2xl border border-dark-700 hover:border-primary-500/70 transition-all duration-300 flex flex-col group overflow-hidden min-h-[320px] aspect-[63/88] cursor-pointer shadow-lg hover:shadow-primary-500/20"
+                className="relative group cursor-pointer min-h-[320px] aspect-[63/88]"
                 onClick={() => openPreview(deck.id)}
               >
+                {parseInt(deck.total_cards) > 0 && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all duration-300 z-50 pointer-events-none flex justify-center">
+                    <div className="bg-dark-900 border border-primary-500 border-b-0 text-primary-400 font-black text-xs md:text-sm px-4 py-1 rounded-t-xl shadow-lg flex items-center gap-1.5 whitespace-nowrap">
+                      <span className={parseInt(deck.owned_cards) === parseInt(deck.total_cards) ? 'text-green-400' : parseInt(deck.owned_cards) > 0 ? 'text-amber-400' : 'text-red-400'}>
+                         {deck.owned_cards}
+                      </span>
+                      <span className="text-primary-500">-</span>
+                      <span>{deck.total_cards}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="w-full h-full relative bg-dark-800 rounded-2xl border border-dark-700 group-hover:border-primary-500/70 transition-all duration-300 flex flex-col overflow-hidden shadow-lg group-hover:shadow-primary-500/20">
                 {/* Background Legend Image */}
                 {deck.legend_image && (
                    <div className="absolute inset-0 z-0">
@@ -818,24 +930,23 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                     </button>
                   </div>
 
-                  <h3 className="text-3xl font-black text-white drop-shadow-lg tracking-wide mb-1 leading-tight pr-10">{deck.name}</h3>
-                  <p className="text-xs text-slate-300/80 font-medium mb-auto drop-shadow-md">Created: {new Date(deck.created_at).toLocaleDateString()}</p>
+                  <h3 className="text-xl md:text-2xl lg:text-3xl font-black text-white drop-shadow-lg tracking-wide mb-1 leading-tight pr-10 line-clamp-2">{deck.name}</h3>
+                  <p className="text-[10px] md:text-xs text-slate-300/80 font-medium mb-auto drop-shadow-md">Created: {new Date(deck.created_at).toLocaleDateString()}</p>
                   
                   {deck.champion_image && (
                      <div className="flex items-end justify-between mt-auto relative z-20 pointer-events-none">
-                       <div className="w-32 sm:w-40 aspect-[63/88] rounded-xl border-2 border-primary-400 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8)] bg-dark-900 flex-shrink-0 -ml-4 -mb-4 transition-all duration-300 hover:scale-[2.2] hover:translate-x-12 hover:-translate-y-16 origin-bottom-left pointer-events-auto cursor-pointer z-50">
+                       <div className="w-[45%] md:w-[50%] aspect-[63/88] rounded-xl border-2 border-primary-400 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8)] bg-dark-900 flex-shrink-0 -ml-[5%] -mb-[5%] transition-all duration-300 hover:scale-[1.8] hover:translate-x-12 hover:-translate-y-16 origin-bottom-left pointer-events-auto cursor-pointer z-50">
                          <img src={deck.champion_image} alt="Champion" className="w-full h-full object-cover object-top" />
                        </div>
                        
                        {deck.rune_counts && (
-                         <div className="flex flex-col gap-1.5 items-end -mr-4 -mb-4 bg-dark-950/80 p-3 rounded-xl backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto">
+                         <div className="flex flex-col gap-1 md:gap-1.5 items-end -mr-[2%] -mb-[2%] bg-dark-950/80 p-2 md:p-3 rounded-xl backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto">
                            {Object.entries(deck.rune_counts).map(([domain, count]) => {
                              const dNorm = domain.charAt(0).toUpperCase() + domain.slice(1).toLowerCase();
                              return (
-                               <div key={domain} className="flex items-center gap-2 text-base font-black text-white drop-shadow-md">
+                               <div key={domain} className="flex items-center gap-1.5 md:gap-2 text-sm md:text-base font-black text-white drop-shadow-md">
                                  {count} 
-                                 <img src={`https://cdn.piltoverarchive.com/colors/${dNorm}.webp`} alt={domain} className="w-5 h-5 object-contain" onError={(e) => e.target.style.display = 'none'} />
-                                 <span className={getDomainTextColor(domain)}>{domain}</span>
+                                 <img src={`https://cdn.piltoverarchive.com/colors/${dNorm}.webp`} alt={domain} className="w-4 h-4 md:w-5 md:h-5 object-contain" onError={(e) => e.target.style.display = 'none'} />
                                </div>
                              );
                            })}
@@ -843,6 +954,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                        )}
                      </div>
                   )}
+                </div>
                 </div>
               </div>
             ))
@@ -911,13 +1023,9 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       {/* Right: Decklist */}
       <div className="w-full lg:w-[26rem] flex flex-col bg-dark-950 border-t lg:border-t-0 lg:border-l border-dark-700/50 relative z-20 shadow-2xl h-[50vh] lg:h-full shrink-0">
         <div className="p-4 border-b border-dark-700 flex flex-col gap-3 bg-dark-900">
-          <input 
-            type="text" value={deckName} onChange={e => setDeckName(e.target.value)}
-            className="bg-transparent text-xl font-bold text-white focus:outline-none focus:border-b focus:border-primary-500 px-1"
-          />
           <div className="flex gap-2">
-            <button onClick={saveDeck} className="flex-1 bg-primary-600 hover:bg-primary-500 text-white py-1.5 rounded font-bold text-sm transition-colors shadow-sm">
-              Save Deck
+            <button onClick={() => setShowSaveModal(true)} className="flex-1 bg-primary-600 hover:bg-primary-500 text-white py-2 rounded font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} /> Save Deck
             </button>
           </div>
           {validation.errors.length > 0 ? (
@@ -999,6 +1107,8 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
 
               const maxE = Math.max(...Object.values(energyCounts), 1);
               const maxP = Math.max(...Object.values(powerCounts), 1);
+              const topDomain = Object.entries(domainCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || 'Neutral';
+              const curveColorClass = getDomainStyles(topDomain).bgDot;
 
               return (
                 <div className="p-4 space-y-4">
@@ -1009,7 +1119,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                         <span className="text-[9px] uppercase font-bold text-slate-500">Cards</span>
                       </div>
                       <div className="bg-dark-800 p-3 rounded-xl border border-dark-700 flex flex-col items-center justify-center">
-                        <span className="text-xl font-black text-amber-400">{avgEnergy}</span>
+                        <span className={`text-xl font-black ${getDomainStyles(topDomain).text}`}>{avgEnergy}</span>
                         <span className="text-[9px] uppercase font-bold text-slate-500">Avg Energy</span>
                       </div>
                    </div>
@@ -1018,7 +1128,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                    <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
                      <h4 className="text-xs uppercase font-bold text-slate-400 mb-4 flex items-center justify-between">
                         <span>Energy Curve</span>
-                        <span className="text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">Avg {avgEnergy}</span>
+                        <span className={`${getDomainStyles(topDomain).text} ${getDomainStyles(topDomain).bg} px-2 py-0.5 rounded`}>Avg {avgEnergy}</span>
                      </h4>
                      <div className="flex items-end justify-between h-24 gap-1">
                        {[0,1,2,3,4,5,6,7].map(cost => {
@@ -1027,7 +1137,7 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
                          return (
                            <div key={cost} className="flex flex-col items-center flex-1 h-full gap-1 group">
                              <div className="w-full bg-dark-900 rounded-t-sm h-full flex items-end justify-center">
-                                <div className="w-full bg-amber-500 rounded-t-sm transition-all relative" style={{ height: `${height}%` }}>
+                                <div className={`w-full ${curveColorClass} rounded-t-sm transition-all relative`} style={{ height: `${height}%` }}>
                                    {count > 0 && <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white opacity-0 group-hover:opacity-100">{count}</span>}
                                 </div>
                              </div>
@@ -1075,10 +1185,51 @@ export default function DeckManager({ cards, collection, API_URL, columns, setCo
       </div>
       {/* Floating Hover Card Preview */}
       {hoveredRowCard && (
-        <div className={`hidden lg:block fixed top-1/2 -translate-y-1/2 right-[440px] z-[100] pointer-events-none transition-all duration-200 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[22rem]' : 'w-64'}`}>
+        <div 
+          className={`hidden lg:block fixed z-[100] pointer-events-none transition-all duration-75 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'w-[384px]' : 'w-[280px]'}`}
+          style={getHoverPosStyle()}
+        >
            <div className={`animate-card-pop relative rounded-xl overflow-hidden shadow-2xl border border-dark-600 shadow-black/50 ${hoveredRowCard.card_type?.toLowerCase() === 'battlefield' ? 'aspect-[88/63]' : 'aspect-[63/88]'}`}>
              <img src={hoveredRowCard.image_url} alt={hoveredRowCard.name} className="w-full h-full object-cover" />
            </div>
+        </div>
+      )}
+      
+      {/* Save Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-dark-900 border border-dark-700 rounded-2xl w-full max-w-xl flex flex-col shadow-2xl overflow-hidden">
+             <div className="p-6 border-b border-dark-700 flex justify-between items-center bg-dark-950">
+               <h2 className="text-2xl font-black text-white">Save Deck</h2>
+               <button onClick={() => setShowSaveModal(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
+             </div>
+             <div className="p-6 overflow-y-auto flex flex-col gap-4 bg-dark-900">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deck Name</label>
+                  <input 
+                    type="text" value={deckName} onChange={e => setDeckName(e.target.value)}
+                    placeholder={deckCards.find(c => c.section === 'legend') ? `${deckCards.find(c => c.section === 'legend').card.name.split('-')[0].trim()} Deck` : 'Deck Name'}
+                    className="bg-dark-950 text-xl font-bold text-white border border-dark-700 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</label>
+                  <textarea 
+                    value={deckDescription} onChange={e => setDeckDescription(e.target.value)}
+                    placeholder="Deck Description (Optional)"
+                    className="bg-dark-950 border border-dark-700 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-primary-500 min-h-[100px] resize-none"
+                  />
+                </div>
+             </div>
+             <div className="p-6 border-t border-dark-700 bg-dark-950 flex justify-end gap-3">
+               <button onClick={() => setShowSaveModal(false)} className="px-6 py-2 rounded-xl font-bold text-sm text-slate-400 hover:text-white transition-colors border border-dark-700 hover:bg-dark-800">
+                 Cancel
+               </button>
+               <button onClick={saveDeck} className="px-6 py-2 rounded-xl font-bold text-sm bg-primary-600 hover:bg-primary-500 text-white transition-colors shadow-lg">
+                 Accept
+               </button>
+             </div>
+          </div>
         </div>
       )}
       

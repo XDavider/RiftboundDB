@@ -177,7 +177,20 @@ app.get('/api/decks', async (req, res) => {
                  WHERE inner_dc.deck_id = d.id AND inner_dc.section = 'main'
                  LIMIT 5
                ) as rc
-             ) as random_cards
+             ) as random_cards,
+             (
+               SELECT COALESCE(SUM(dc.quantity), 0)
+               FROM deck_cards dc
+               JOIN cards rc ON dc.card_id = rc.id
+               WHERE dc.deck_id = d.id AND rc.card_type NOT ILIKE '%Rune%'
+             ) as total_cards,
+             (
+               SELECT COALESCE(SUM(LEAST(dc.quantity, COALESCE(col.normal_count, 0) + COALESCE(col.foil_count, 0))), 0)
+               FROM deck_cards dc
+               JOIN cards rc ON dc.card_id = rc.id
+               LEFT JOIN user_collection col ON dc.card_id = col.card_id
+               WHERE dc.deck_id = d.id AND rc.card_type NOT ILIKE '%Rune%'
+             ) as owned_cards
       FROM decks d 
       LEFT JOIN cards l ON d.legend_id = l.id
       LEFT JOIN cards c ON d.champion_id = c.id
@@ -216,7 +229,7 @@ app.get('/api/decks/:id', async (req, res) => {
 
 // POST /api/decks
 app.post('/api/decks', async (req, res) => {
-  const { id, name, legend_id, champion_id, cards } = req.body;
+  const { id, name, description, legend_id, champion_id, cards } = req.body;
   const client = await pool.connect();
   
   try {
@@ -225,14 +238,14 @@ app.post('/api/decks', async (req, res) => {
     let deckId = id;
     if (deckId) {
       await client.query(
-        'UPDATE decks SET name = $1, legend_id = $2, champion_id = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
-        [name, legend_id, champion_id, deckId]
+        'UPDATE decks SET name = $1, description = $2, legend_id = $3, champion_id = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5',
+        [name, description || null, legend_id, champion_id, deckId]
       );
       await client.query('DELETE FROM deck_cards WHERE deck_id = $1', [deckId]);
     } else {
       const insertRes = await client.query(
-        'INSERT INTO decks (name, legend_id, champion_id) VALUES ($1, $2, $3) RETURNING id',
-        [name, legend_id, champion_id]
+        'INSERT INTO decks (name, description, legend_id, champion_id) VALUES ($1, $2, $3, $4) RETURNING id',
+        [name, description || null, legend_id, champion_id]
       );
       deckId = insertRes.rows[0].id;
     }

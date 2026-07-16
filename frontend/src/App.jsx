@@ -7,7 +7,7 @@ import { Search, Filter, Layers, Database, Upload, Menu, X } from 'lucide-react'
 const API_URL = 'http://localhost:3001/api';
 
 function App() {
-  const [cards, setCards] = useState([]);
+  const [allCards, setAllCards] = useState([]);
   const [collection, setCollection] = useState({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -24,7 +24,7 @@ function App() {
   
   // UI State
   const [columns, setColumns] = useState(6);
-  const [totalDbCards, setTotalDbCards] = useState(0);
+
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'collection'
   const [mainTab, setMainTab] = useState('cards'); // 'cards' or 'decks'
   const [showSidebar, setShowSidebar] = useState(false);
@@ -32,25 +32,25 @@ function App() {
 
   const fetchCards = async () => {
     try {
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (rarity) params.append('rarity', rarity);
-      if (cost) params.append('cost', cost);
-      if (type && type.length > 0) params.append('type', type.join(','));
-      if (domain && domain.length > 0) params.append('domain', domain.join(','));
-      
-      const res = await fetch(`${API_URL}/cards?${params.toString()}`);
+      const res = await fetch(`${API_URL}/cards`);
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
-      setCards(data);
-      
-      if (!search && !rarity && !cost && !type && !domain && totalDbCards === 0) {
-        setTotalDbCards(data.length);
-      }
+      setAllCards(data);
     } catch (error) {
       console.error("Error fetching cards:", error);
     }
   };
+
+  const cards = React.useMemo(() => {
+    return allCards.filter(c => {
+      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (rarity && c.rarity?.toLowerCase() !== rarity.toLowerCase()) return false;
+      if (cost && c.energy_cost !== parseInt(cost)) return false;
+      if (type.length > 0 && !type.some(t => c.card_type?.includes(t))) return false;
+      if (domain.length > 0 && !domain.some(d => c.element?.includes(d))) return false;
+      return true;
+    });
+  }, [allCards, search, rarity, cost, type, domain]);
 
   const fetchCollection = async () => {
     try {
@@ -75,7 +75,7 @@ function App() {
       setLoading(false);
     };
     init();
-  }, [search, rarity, cost, type, domain]);
+  }, []);
 
   const handleUpdateCollection = async (cardId, normalCount, foilCount) => {
     try {
@@ -128,12 +128,12 @@ function App() {
            const normalCount = parseInt(cols[1]) || 0;
            const foilCount = parseInt(cols[2]) || 0;
            
-           let card = cards.find(c => c.card_code && c.card_code.toLowerCase() === cardCode.toLowerCase());
+           let card = allCards.find(c => c.card_code && c.card_code.toLowerCase() === cardCode.toLowerCase());
            
            if (!card) {
              const baseCodeMatch = cardCode.match(/^([A-Z]+)-0*(\d+)/i);
              const baseCode = baseCodeMatch ? `${baseCodeMatch[1].toUpperCase()}-${baseCodeMatch[2]}` : cardCode.toUpperCase();
-             card = cards.find(c => {
+             card = allCards.find(c => {
                if (!c.card_code) return false;
                const dbCodeMatch = c.card_code.match(/^([A-Z]+)-0*(\d+)/i);
                const dbBaseCode = dbCodeMatch ? `${dbCodeMatch[1].toUpperCase()}-${dbCodeMatch[2]}` : c.card_code.toUpperCase();
@@ -187,7 +187,7 @@ function App() {
       return (c.normal_count > 0 || c.foil_count > 0);
   }).length;
   
-  const completionPercentage = cards.length > 0 ? Math.round((uniqueCardsOwned / (totalDbCards || cards.length)) * 100) : 0;
+  const completionPercentage = allCards.length > 0 ? Math.round((uniqueCardsOwned / allCards.length) * 100) : 0;
 
   const displayedCards = [...(viewMode === 'collection' 
     ? cards.filter(c => collection[c.id]?.normal_count > 0 || collection[c.id]?.foil_count > 0)
@@ -235,7 +235,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-black bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent flex items-center gap-3">
-                <Layers className="text-primary-500" />
+                <img src="./favicon.ico" alt="Riftbound Logo" className="w-8 h-8" />
                 Riftbound
               </h1>
               <p className="text-sm text-slate-400 mt-1">Collection Tracker</p>
@@ -311,8 +311,9 @@ function App() {
                 <button 
                   key={t}
                   onClick={() => setType(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${type.includes(t) ? 'bg-primary-600 text-white' : 'bg-dark-800 text-slate-400 hover:bg-dark-700 border border-dark-700'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${type.includes(t) ? 'bg-primary-600 text-white border-primary-500' : 'bg-dark-800 text-slate-400 hover:bg-dark-700 border border-dark-700'}`}
                 >
+                  <img src={`https://cdn.piltoverarchive.com/types/${t.toLowerCase()}.webp`} alt={t} className="w-4 h-4 object-contain" onError={(e) => e.target.style.display='none'} />
                   {t}
                 </button>
               ))}
@@ -325,12 +326,13 @@ function App() {
               {domain.length > 0 && <button onClick={() => setDomain([])} className="text-xs text-primary-400 hover:text-primary-300">Clear</button>}
             </label>
             <div className="flex flex-wrap gap-2">
-              {['Chaos', 'Order', 'Life', 'Death', 'Elemental', 'Neutral'].map(d => (
+              {['Mind', 'Order', 'Body', 'Chaos', 'Fury', 'Calm'].map(d => (
                 <button 
                   key={d}
                   onClick={() => setDomain(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${domain.includes(d) ? 'bg-primary-600 text-white' : 'bg-dark-800 text-slate-400 hover:bg-dark-700 border border-dark-700'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${domain.includes(d) ? 'bg-primary-600 text-white border-primary-500' : 'bg-dark-800 text-slate-400 hover:bg-dark-700 border border-dark-700'}`}
                 >
+                  <img src={`https://cdn.piltoverarchive.com/colors/${d}.webp`} alt={d} className="w-4 h-4 object-contain" onError={(e) => e.target.style.display='none'} />
                   {d}
                 </button>
               ))}
@@ -419,7 +421,7 @@ function App() {
             
               <div className="bg-dark-900 border border-dark-700 rounded-xl px-4 py-2 flex flex-col items-center justify-center">
                 <span className="text-2xl font-black text-primary-400">
-                  {uniqueCardsOwned}<span className="text-sm text-slate-500 ml-1">/ {totalDbCards || cards.length}</span>
+                  {uniqueCardsOwned}<span className="text-sm text-slate-500 ml-1">/ {allCards.length}</span>
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Total Cards</span>
               </div>
@@ -482,7 +484,7 @@ function App() {
              </div>
           </div>
           <DeckManager 
-            cards={displayedCards} 
+            cards={cards} 
             collection={collection} 
             API_URL={API_URL} 
             columns={columns}
@@ -490,6 +492,7 @@ function App() {
             setType={setType}
             setDomain={setDomain}
             setSearch={setSearch}
+            onClickCard={setSelectedCardForModal}
           />
         </div>
       )}
